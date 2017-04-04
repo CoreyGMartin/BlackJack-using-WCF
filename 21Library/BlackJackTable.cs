@@ -13,15 +13,17 @@ namespace _21Library {
 	public class BlackJackTable : IBlackJackTable {
 		//Fields
 		private bool hasGameStarted;
+		private const int numberOfDecks = 5;
+		private const double payoutRate = 1.5; // 3-to-2
+
 		private Random random;
 		private Dictionary<string, IPlayerCallBack> playerCallBacks;
 		private List<string> messages = new List<string>();
 		private List<Card> shoe;
-		private const int numberOfDecks = 5;
-		private double payoutRate = 1.5; // 3-to-2
 		private Dealer dealer;
 		private Player[] players;
 		private List<Player> playersWaitingToPlay;
+		
 
 		//Constructor
 		public BlackJackTable() {
@@ -37,10 +39,16 @@ namespace _21Library {
 		}
 
 		//Public Methods
-		public bool AddPlayer(string name) {
-			bool success = false;
+		public string AddPlayer(string name) {
+			//playersAtTable
+			string status = "";
+			string[] messages = new string[1];
 
-			if (!playerCallBacks.ContainsKey(name.ToUpper())) {
+			if (playerCallBacks.ContainsKey(name.ToUpper())) {
+				status = "nameTaken";
+			} else if (playersWaitingToPlay.Count + players.Count(p => p != null) == 5) {
+				status = "gameFull";
+			} else  { 
 				//Add player to Call back dictionary.
 				IPlayerCallBack playerCallBack = OperationContext.Current.GetCallbackChannel<IPlayerCallBack>();
 				playerCallBacks.Add(name.ToUpper(), playerCallBack);
@@ -49,7 +57,7 @@ namespace _21Library {
 				Player player = new Player(name);
 				if (hasGameStarted) {
 					playersWaitingToPlay.Add(player);
-					playerCallBack.UpdateGUI(GetAllPlayersAndDealer(), null);
+					messages[0] = name + " has joined the game and is waiting to play";
 				} else {
 					//Create list of available seats.
 					List<int> availableSeats = new List<int>();
@@ -59,22 +67,43 @@ namespace _21Library {
 
 					int seat = availableSeats[random.Next(availableSeats.Count)];
 					players[seat] = player;
-				}
 
-				success = true;
+					messages[0] = name + " has joined the game";
+				}
+				status = "success";
 			}
 
-			return success;
+			UpdateAllPlayers(true, true, messages);
+
+			return status;
 		}
 		public void RemovePlayer(string name) {
 			if (playerCallBacks.ContainsKey(name.ToUpper())) {
+				//Remover player from call back dictionary.
 				playerCallBacks.Remove(name.ToUpper());
+
+				//Inform all the players.
+				foreach (var playerCallBack in playerCallBacks)
+					playerCallBack.Value.UpdatePlayersWithMessage(new string[] { name + " has left the game." });
+
+				//Check if the player was in the player array (playing the game)
 				for (int i = 0; i < players.Length; ++i) {
-					if (players[i] != null)
+					if (players[i] != null) {
 						if (players[i].Name == name) {
-							players[i] = null;
+							//Check if it was the turn of the player who left.
+							bool nextTurn = players[i].IsItMyTurn;
+
+							//Remove player from player array and update clients.
+							if (nextTurn) {
+								NextTurn(true);
+							} else {
+								players[i] = null;
+								UpdateAllPlayers(true, true, null);
+							}
+
 							break;
 						}
+					}
 				}
 			}
 		}
@@ -113,17 +142,19 @@ namespace _21Library {
 			if (player.HasBusted()) {
 				//delay for real users to notice graphical difference.
 				Thread.Sleep(2000);
-				NextTurn();
+				NextTurn(false);
 			}
 		}
-		public void NextTurn() {
+		public void NextTurn(bool removeCurrentTurnPlayer) {
 			bool dealersTurn = true;
 
 			//Advance Player turn.
 			bool lookingForNextTurnPlayer = true;
-			for (int i = 0; i < players.Length && lookingForNextTurnPlayer; ++i)
+			for (int i = 0; i < players.Length && lookingForNextTurnPlayer; ++i) {
 				if (players[i] != null && players[i].IsItMyTurn) {
 					players[i].IsItMyTurn = false;
+					if (removeCurrentTurnPlayer)
+						players[i] = null;
 					for (int ii = i + 1; ii < players.Length && lookingForNextTurnPlayer; ++ii)
 						if (players[ii] != null) {
 							players[ii].IsItMyTurn = true;
@@ -132,71 +163,92 @@ namespace _21Library {
 							UpdateAllPlayers(true, true, null);
 						}
 				}
+			}
 
-			int playersatTable = players.Count(p => p != null);
-			if (dealersTurn && playersatTable != 0) {
-				//--------Dealers turn--------
-				bool handOver = false;
-				string dealersDecision = "";
-				//Show dealer's hidden card.
-				dealer.FirstCard = Visibility.Visible;
-				UpdateAllPlayers(false, true, new string[] { "Dealer reveals " + dealer.GetCardNameByIndex(0) });
-				Thread.Sleep(3000);
+			//Check if it is the dealers turn.
+			if (dealersTurn && players.Count(p => p != null) != 0) {
+				StartDealersTurn();
+			}
 
-				//Deal cards to Dealer and analyze outcome.
-				for (int i = 2; !handOver; ++i) {
-					//Get a list of active players who haven't busted.
-					var playersExistAndAlive = players.Where(p => (p != null && p.CardTotal <= 21));
-					//Check how many players the dealer has beat.
-					int playersBeat = playersExistAndAlive.Where(p => (dealer.CardTotal >= p.CardTotal)).Count();
-
-					//Decide if dealer should stay and payout or attempt to beat more players.
-					if (playersExistAndAlive.Count() == 0) {
-						//Everybody has busted. Dealer has won, no need to deal any cards to the dealer.
-						handOver = true;
-						dealersDecision = "Dealer stays";
-					} else if (playersBeat != 0) {
-						double beatPercentage = (((double)playersBeat) / playersExistAndAlive.Count()) * 100.0;
-						if (beatPercentage >= 50.0) {
-							//Dealer has beat at least 50% of alive players. Good Enough.
-							handOver = true;
-							dealersDecision = "Dealer stays";
-						}
-					}
-
-					//Deal a card to the deal if the hand isn't over.
-					if (!handOver) {
-						//Dealer hasn't beat 50% of alive players, deal more cards to Dealer.
-						//Deal card
-						Card card = DealOneCard();
-						dealer.Cards[i] = card;
-						dealersDecision = "Dealer takes " + card.ToString();
-
-						//Check if dealer has busted
-						if (dealer.HasBusted()) {
-							//Dealer has busted.
-							handOver = true;
-							dealersDecision = "Dealer Busted and lost";
-						}
-					}
-					UpdateAllPlayers(false, true, new string[] { dealersDecision });
-
-					//Delay for users to notice graphical update.
-					Thread.Sleep(2000);
-				}
-
-				CalculateWinnings();
-				DealHand(true);
-				foreach (var playerCallBack in playerCallBacks)
-					playerCallBack.Value.StartHand(GetAllPlayersAndDealer());
-
-			} else if (playersatTable == 0)  {
+			//Potentially no players left after calculating winnings after dealers turn.
+			if (players.Count(p => p != null) == 0)  {
 				//No players in game check for players.
-				CheckForPlayers();
+				if (playersWaitingToPlay.Count > 0) {
+					//Start new hand
+					DealHand(true);
+				} else
+					CheckForPlayers();
 			}
 		}
 
 		//Private Methods
+		private void StartDealersTurn() {
+			//--------Dealers turn--------
+			bool handOver = false;
+			string dealersDecision = null;
+
+			//Show dealer's hidden card.
+			dealer.FirstCard = Visibility.Visible;
+			UpdateAllPlayers(false, true, new string[] { "Dealer reveals " + dealer.GetCardNameByIndex(0) });
+			Thread.Sleep(3000);
+
+			//Deal cards to Dealer and analyze outcome.
+			for (int i = 2; !handOver; ++i) {
+				string dealersCard = null;
+
+				//Get a list of active players who haven't busted.
+				var playersExistAndAlive = players.Where(p => (p != null && p.CardTotal <= 21));
+				//Check how many players the dealer has beat.
+				int playersBeat = playersExistAndAlive.Where(p => (dealer.CardTotal >= p.CardTotal)).Count();
+
+				//Decide if dealer should stay and payout or attempt to beat more players.
+				if (playersExistAndAlive.Count() == 0) {
+					//Everybody has busted. Dealer has won, no need to deal any cards to the dealer.
+					handOver = true;
+					dealersDecision = "Dealer stays at " + dealer.CardTotal;
+				} else if (playersBeat != 0) {
+					double beatPercentage = (((double)playersBeat) / playersExistAndAlive.Count()) * 100.0;
+					if (beatPercentage >= 50.0) {
+						//Dealer has beat at least 50% of alive players. Good Enough.
+						handOver = true;
+						dealersDecision = "Dealer stays at " + dealer.CardTotal;
+					}
+				}
+
+				//Deal a card to the deal if the hand isn't over.
+				if (!handOver) {
+					//Dealer hasn't beat 50% of alive players, deal more cards to Dealer.
+					//Deal card
+					Card card = DealOneCard();
+					dealer.Cards[i] = card;
+					dealersCard = "Dealer is dealt " + card.ToString();
+
+					//Check if dealer has busted
+					if (dealer.HasBusted()) {
+						//Dealer has busted.
+						handOver = true;
+						dealersDecision = "Dealer busts and losses";
+					}
+				}
+
+				UpdateAllPlayers(false, true, new string[] { dealersCard, dealersDecision });
+
+				//Delay for users to notice graphical update.
+				Thread.Sleep(2000);
+			}
+
+			//Shows graphical view of the won and lost bets.
+			CalculateWinnings();
+
+			//Delay for users to notice graphical update.
+			Thread.Sleep(3000);
+
+			//Start a new hand
+			DealHand(true);
+
+			//Inform clients.
+			UpdateAllPlayers(true, true, new string[] { "New hand has started" });
+		}
 		private Tuple<Player[], Dealer> GetAllPlayersAndDealer() { return Tuple.Create(players, dealer); }
 		private void DealHand(bool isContinuousHand) {
 			//Clear previous cards of all players and dealer
@@ -216,7 +268,6 @@ namespace _21Library {
 					}
 					//Remove all players waiting to play
 					playersWaitingToPlay.Clear();
-					
 				}
 
 				foreach (Player player in players)
@@ -272,6 +323,26 @@ namespace _21Library {
 				}
 			}
 
+			//Check if any player has ran out of money (minimum bet is 50)
+			for (int i = 0; i < players.Length; ++i) {
+				if (players[i] != null && players[i].Money < 50) {
+					//Kick player
+					string key = players[i].Name.ToUpper();
+
+					//Surround with a try/catch incase user rage quits.
+					try {
+						playerCallBacks[key].UpdatePlayerWithMessage("kicked");
+					} catch (Exception ex) {
+						//No need to fix this, player was going to be removed anyways.
+						//Log the exception.
+						//TODO: create logger
+					}
+
+					playerCallBacks.Remove(key);
+					players[i] = null;
+				}
+			}
+
 			UpdateAllPlayers(true, true, playersWinning);
 
 			//Reset everything bet related
@@ -305,6 +376,7 @@ namespace _21Library {
 		}
 		private async void CheckForPlayers() {
 			bool continueLoop = true;
+			hasGameStarted = false;
 
 			while (continueLoop) {
 				//Check every second if a player has joined the game.
@@ -317,17 +389,30 @@ namespace _21Library {
 
 			hasGameStarted = true;
 			DealHand(false);
-			foreach (var playerCallBack in playerCallBacks)
-				playerCallBack.Value.StartHand(GetAllPlayersAndDealer());
+
+			UpdateAllPlayers(true, true, new string[] { "New hand has started" });
 		}
 		private void UpdateAllPlayers(bool updatePlayers, bool updateDealer, string[] messages) {
 			//Inform all clients of the changes.
-			if (updatePlayers && updateDealer) {
-				foreach (var playerCallBack in playerCallBacks)
-					playerCallBack.Value.UpdateGUI(GetAllPlayersAndDealer(), messages);
-			} else if (!updatePlayers && updateDealer) {
-				foreach (var playerCallBack in playerCallBacks)
-					playerCallBack.Value.UpdateDealerGUI(dealer, messages);
+			try {
+				//Send Players, Dealer Data and messages
+				if (updatePlayers && updateDealer) {
+					foreach (var playerCallBack in playerCallBacks)
+						playerCallBack.Value.UpdatePlayersAndDealer(GetAllPlayersAndDealer(), messages);
+					//Send Dealer Data and messages
+				} else if (!updatePlayers && updateDealer) {
+					foreach (var playerCallBack in playerCallBacks)
+						playerCallBack.Value.UpdateDealerGUI(dealer, messages);
+					//Send messages
+				} else if (!updatePlayers && !updateDealer) {
+					foreach (var playerCallBack in playerCallBacks)
+						playerCallBack.Value.UpdatePlayersWithMessage(messages);
+				}
+			} catch (Exception ex) {
+				//Incase a client gets disconnected/leaves while the service is updating all the clients.
+				//Once this method returns the hand cycle will fix be fixed by the RemovePlayer Method above.
+				//Log the exception.
+				//TODO: create logger
 			}
 		}
 	}

@@ -1,18 +1,5 @@
 ﻿using _21Library;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.ServiceModel;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 
 namespace _21Client {
 	/// <summary>
@@ -31,14 +18,21 @@ namespace _21Client {
 			string name = nameTextBox.Text;
 			if (name != "") {
 				//Attempt to join game.
-				if (table.AddPlayer(name)) {
+				string response = table.AddPlayer(name);
+				if (response == "success") {
 					client.Name = name;
 					client.Title = "BlackJack - " + name;
 					client.Show();
 					Close();
-				} else {
+				} else if (response == "nameTaken") {
 					//Failed to join game
 					MessageBox.Show("Name has been taken, please choose a different name", "Name Already In Use", MessageBoxButton.OK, MessageBoxImage.Error);
+				} else if (response == "gameFull") {
+					//Failed to join game
+					MessageBox.Show("The table is currently full please try again later.", "Game Full", MessageBoxButton.OK, MessageBoxImage.Error);
+				} else {
+					//Failed to join game
+					MessageBox.Show("Error", "Unknown Error occurred", MessageBoxButton.OK, MessageBoxImage.Error);
 				}
 			}
 		}

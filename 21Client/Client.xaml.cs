@@ -1,17 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 using _21Library;
 using System.ServiceModel;
 
@@ -30,11 +19,7 @@ namespace _21Client {
 			InitializeComponent();
 
 			// Configure the ABCs of using the BlackJackTable service.
-			DuplexChannelFactory<IBlackJackTable> channel = new DuplexChannelFactory<IBlackJackTable>(
-																this,
-																new NetTcpBinding(),
-																new EndpointAddress("net.tcp://localhost:12000/21Library/BlackJackTable")
-															);
+			DuplexChannelFactory<IBlackJackTable> channel = new DuplexChannelFactory<IBlackJackTable>(this, new NetTcpBinding(), new EndpointAddress("net.tcp://localhost:12000/21Library/BlackJackTable"));
 
 			// Activate a BlackJackTable instance.
 			table = channel.CreateChannel();
@@ -58,56 +43,30 @@ namespace _21Client {
 		}
 
 		//---------------------------------------------------Callback Implementation---------------------------------------------------
-		private delegate void GuiUpdate(Tuple<Player[], Dealer> playersAndDealer);
 		private delegate void GuiUpdatePlayersAndDealer(Tuple<Player[], Dealer> playersAndDealer, string[] dealersDecision);
 		private delegate void GuiUpdateDealer(Dealer dealer, string[] dealersDecision);
-		public async void StartHand(Tuple<Player[], Dealer> playersAndDealer) {
+		private delegate void GuiUpdateMessages(string[] messages);
+		private delegate void GuiUpdateMessage(string message);
+
+		public void UpdatePlayerWithMessage(string message) {
 			if (Dispatcher.Thread == System.Threading.Thread.CurrentThread) {
-				//Inform player the hand is about to start.
-				AddTextToGameLogNoSapces("Hand Starting in");
-				for (int second = 3; second > 0; --second) {
-					AddTextToGameLogNoSapces(" " + second);
-					await Task.Delay(1000);
+				if (message == "kicked") {
+					Hide();
+					statusTextBox.Text = "";
+					Join join = new Join(table, this);
+					join.Show();
+					MessageBox.Show("Out of Money!", "No Money", MessageBoxButton.OK, MessageBoxImage.Information);
 				}
-				AddTextToGameLog(new string[] { "" });
-
-				//Bind data from service to wpf
-				players = playersAndDealer.Item1;
-				dealer = playersAndDealer.Item2;
-				DataContext = new { Players = players, Dealer = dealer };
-
-				//Show player zones of seats taken
-				if (players[0] != null)
-					player0Zone.Visibility = Visibility.Visible;
-				if (players[1] != null)
-					player1Zone.Visibility = Visibility.Visible;
-				if (players[2] != null)
-					player2Zone.Visibility = Visibility.Visible;
-				if (players[3] != null)
-					player3Zone.Visibility = Visibility.Visible;
-				if (players[4] != null)
-					player4Zone.Visibility = Visibility.Visible;
-
-				//Check if it is my turn
-				Player player = players.First(p => p != null && p.Name == Name);
-				if (player.IsItMyTurn) {
-					//My turn, enable controls
-					betBtn.IsEnabled = true;
-					betSlider.IsEnabled = true;
-				} else {
-					//Not my turn, disable controls
-					hitMeBtn.IsEnabled = false;
-					stayBtn.IsEnabled = false;
-					betBtn.IsEnabled = false;
-					betSlider.IsEnabled = false;
-				}
-				betSlider.Maximum = player.Money;
-				availableMoneyToBetTextBlock.Text = player.Money.ToString();
-
 			} else
-				await Dispatcher.BeginInvoke(new GuiUpdate(StartHand), new object[] { playersAndDealer });
+				Dispatcher.BeginInvoke(new GuiUpdateMessage(UpdatePlayerWithMessage), new object[] { message });
 		}
-		public void UpdateGUI(Tuple<Player[], Dealer> playersAndDealer, string[] messages) {
+		public void UpdatePlayersWithMessage(string[] messages) {
+			if (Dispatcher.Thread == System.Threading.Thread.CurrentThread) {
+				AddTextToGameLog(messages);
+			} else
+				Dispatcher.BeginInvoke(new GuiUpdateMessages(UpdatePlayersWithMessage), new object[] { messages });
+		}
+		public void UpdatePlayersAndDealer(Tuple<Player[], Dealer> playersAndDealer, string[] messages) {
 			if (Dispatcher.Thread == System.Threading.Thread.CurrentThread) {
 				//Bind data from service to wpf
 				players = playersAndDealer.Item1;
@@ -117,16 +76,11 @@ namespace _21Client {
 				AddTextToGameLog(messages);
 
 				//Show player zones of seats taken
-				if (players[0] != null)
-					player0Zone.Visibility = Visibility.Visible;
-				if (players[1] != null)
-					player1Zone.Visibility = Visibility.Visible;
-				if (players[2] != null)
-					player2Zone.Visibility = Visibility.Visible;
-				if (players[3] != null)
-					player3Zone.Visibility = Visibility.Visible;
-				if (players[4] != null)
-					player4Zone.Visibility = Visibility.Visible;
+				if (players[0] != null) player0Zone.Visibility = Visibility.Visible; else player0Zone.Visibility = Visibility.Hidden;
+				if (players[1] != null) player1Zone.Visibility = Visibility.Visible; else player1Zone.Visibility = Visibility.Hidden;
+				if (players[2] != null) player2Zone.Visibility = Visibility.Visible; else player2Zone.Visibility = Visibility.Hidden;
+				if (players[3] != null) player3Zone.Visibility = Visibility.Visible; else player3Zone.Visibility = Visibility.Hidden;
+				if (players[4] != null) player4Zone.Visibility = Visibility.Visible; else player4Zone.Visibility = Visibility.Hidden;
 
 				//Checks if player is waiting or currently playing.
 				if (players.Any(p => p != null && p.Name == Name)) {
@@ -138,7 +92,7 @@ namespace _21Client {
 						betSlider.IsEnabled = true;
 						hitMeBtn.IsEnabled = false;
 						stayBtn.IsEnabled = false;
-					} else if (player.IsItMyTurn) {
+					} else if (player.IsItMyTurn && !player.HasBusted()) {
 						//Player has placed bet
 						betBtn.IsEnabled = false;
 						betSlider.IsEnabled = false;
@@ -153,17 +107,10 @@ namespace _21Client {
 					}
 					betSlider.Maximum = player.Money;
 					availableMoneyToBetTextBlock.Text = player.Money.ToString();
-					//Play is not waiting.
-					//Player player = players.First(p => p != null && p.Name == Name);
-					//if (player.HasBusted()) {
-					//	//Player busted.
-					//	hitMeBtn.IsEnabled = false;
-					//	stayBtn.IsEnabled = false;
-					//}
 				}
 
 			} else
-				Dispatcher.BeginInvoke(new GuiUpdatePlayersAndDealer(UpdateGUI), new object[] { playersAndDealer, messages });
+				Dispatcher.BeginInvoke(new GuiUpdatePlayersAndDealer(UpdatePlayersAndDealer), new object[] { playersAndDealer, messages });
 		}
 		public void UpdateDealerGUI(Dealer dealer, string[] dealersDecision) {
 			if (Dispatcher.Thread == System.Threading.Thread.CurrentThread) {
@@ -180,30 +127,17 @@ namespace _21Client {
 		}
 
 		//---------------------------------------------------WPF Event Handlers---------------------------------------------------
-
 		private void hitMeBtn_Click(object sender, RoutedEventArgs e) {
 			table.DealCardToTurnPlayer();
 		}
-
 		private void betBtn_Click(object sender, RoutedEventArgs e) {
 			table.SetPlayersTurnBet((int)betSlider.Value);
-
-			betSlider.Value = 50; //Minimum bet is 50
-			//betSlider.IsEnabled = false;
-			//betBtn.IsEnabled = false;
-
-			//hitMeBtn.IsEnabled = true;
-			//stayBtn.IsEnabled = true;
+			//Minimum bet is 50
+			betSlider.Value = 50; 
 		}
-
 		private void stayBtn_Click(object sender, RoutedEventArgs e) {
-			table.NextTurn();
-			betSlider.IsEnabled = true;
-			betBtn.IsEnabled = true;
-			hitMeBtn.IsEnabled = false;
-			stayBtn.IsEnabled = false;
+			table.NextTurn(false);
 		}
-
 		private void client_Closed(object sender, EventArgs e) {
 			table.RemovePlayer(Name);
 		}
@@ -212,13 +146,13 @@ namespace _21Client {
 		public void AddTextToGameLog(string[] messages) {
 			if (messages != null) {
 				foreach (string message in messages)
-					statusTextBox.AppendText(message + "\n");
+					if (message != null)
+						statusTextBox.AppendText(message + "\n");
 
 				//Auto scroll vertical scroll bar.
 				statusTextBox.Focus();
 				statusTextBox.CaretIndex = statusTextBox.Text.Length;
 				statusTextBox.ScrollToEnd();
-
 			}
 		}
 		public void AddTextToGameLogNoSapces(string message) {
