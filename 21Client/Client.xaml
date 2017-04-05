@@ -26,9 +26,10 @@
 		
 		<!-- Table design -->
 		<Border Grid.Row="1" Grid.Column="2" BorderThickness="5" BorderBrush="Red" CornerRadius="100" Margin="2">
-			<StackPanel Orientation="Vertical" Margin="15">
+			<StackPanel Orientation="Vertical" Margin="11">
 				<TextBlock  Text="3-to-2 Payout" FontSize="26" VerticalAlignment="Center" HorizontalAlignment="Center" />
 				<TextBlock  Text="Shoe Size = 5 Deck(s)" FontSize="16" VerticalAlignment="Center" HorizontalAlignment="Center" />
+				<TextBlock  Text="Dealer wins on tie" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Center" />
 			</StackPanel>
 		</Border>
 			
