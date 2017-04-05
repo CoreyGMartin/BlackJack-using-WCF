@@ -39,6 +39,8 @@ namespace _21Library {
 		[DataMember]
 		public string BetLabel { get { return Bet.ToString("C"); } private set { } }
 		[DataMember]
+		public bool CanStartGame { get; set; }
+		[DataMember]
 		public Card[] Cards { get; set; }
 		[DataMember]
 		public int CardTotal {
@@ -84,6 +86,7 @@ namespace _21Library {
 		public Player(string name) {
 			Cards = new Card[8];
 			IsItMyTurn = false;
+			CanStartGame = false;
 			AmountWonLostLabelVisibility = Visibility.Hidden;
 			Name = name;
 			money = 20000; //$20,000
@@ -102,7 +105,6 @@ namespace _21Library {
 		}
 		public void LostBet() {
 			AmountWonLost = Bet * -1;
-			//Money += AmountWonLost;
 			AmountWonLostLabelVisibility = Visibility.Visible;
 		}
 		public void WonBet(double rate) {

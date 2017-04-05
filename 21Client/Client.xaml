@@ -7,7 +7,7 @@
         mc:Ignorable="d"
         x:Name="client" Title="Client" Height="576" Width="1024" 
 		Background="DarkGreen" WindowStartupLocation="CenterScreen" 
-		ResizeMode="NoResize" Closed="client_Closed" >
+		ResizeMode="NoResize" Closed="client_Closed">
 	<Grid>
 		<Grid.RowDefinitions>
 			<RowDefinition Height="*"/>
@@ -33,12 +33,13 @@
 		</Border>
 			
 		<!-- Controls -->
-		<Ellipse Width="25" Height="25" Fill="Yellow" Grid.Column="{Binding TurnIdentifierCol}" Grid.Row="{Binding TurnIdentifierRow}" VerticalAlignment="Top" />
+		<Ellipse x:Name="turnIndicatorEllipse" Width="25" Height="25" Fill="Yellow" Grid.Column="{Binding ElementName=client, Path=TurnIndicatorCol}" Grid.Row="{Binding ElementName=client, Path=TurnIndicatorRow}" VerticalAlignment="Top" />
 		<StackPanel Orientation="Vertical" Grid.Row="4" Grid.Column="3" Grid.ColumnSpan="2">
 			<StackPanel Orientation="Horizontal" >
 				<Button x:Name="hitMeBtn" IsEnabled="False" Content="Hit Me" FontSize="20" Width="75" Height="35" Margin="2" Click="hitMeBtn_Click" />
 				<Button x:Name="stayBtn" IsEnabled="False" Content="Stay" FontSize="20" Width="75" Height="35" Margin="2" Click="stayBtn_Click" />
 				<Button x:Name="betBtn" IsEnabled="False" Content="Bet" FontSize="20" Width="75" Height="35" Margin="2" Click="betBtn_Click" />
+				<Button x:Name="startGameBtn" IsEnabled="False" Content="Start Game" FontSize="20" Width="120" Height="35" Margin="2" Click="startGameBtn_Click" />
 			</StackPanel>
 			<StackPanel Orientation="Horizontal">
 				<TextBlock Text="Available: " FontSize="20" Margin="2" VerticalAlignment="Center" />
@@ -51,7 +52,6 @@
 			</StackPanel>
 		</StackPanel>
 		<Grid Grid.Row="4" Grid.ColumnSpan="2">
-			<!-- <TextBlock x:Name="statusTextBlock" Text="" FontSize="30" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="10" /> -->
 			<TextBox x:Name="statusTextBox" VerticalScrollBarVisibility="Auto" TextWrapping="Wrap" AcceptsReturn="True" Margin="10" Text="" IsReadOnly="True" FontSize="14" />
 		</Grid>
 		

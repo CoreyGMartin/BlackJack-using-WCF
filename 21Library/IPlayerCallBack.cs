@@ -6,7 +6,7 @@ namespace _21Library {
 		[OperationContract(IsOneWay = true)]
 		void UpdatePlayersAndDealer(Tuple<Player[], Dealer> playersAndDealer, string[] messages);
 		[OperationContract(IsOneWay = true)]
-		void UpdateDealerGUI(Dealer dealer, string[] dealersDecision);
+		void UpdateDealer(Dealer dealer, string[] dealersDecision);
 		[OperationContract(IsOneWay = true)]
 		void UpdatePlayersWithMessage(string[] messages);
 		[OperationContract(IsOneWay = true)]

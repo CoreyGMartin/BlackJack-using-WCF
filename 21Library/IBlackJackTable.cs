@@ -2,8 +2,10 @@
 
 namespace _21Library {
 	[ServiceContract(CallbackContract = typeof(IPlayerCallBack))]
-	public interface IBlackJackTable {
+	public interface IBlackJackTable : I21Service {
 		//Methods
+		[OperationContract(IsOneWay = true)]
+		void StartGame();
 		[OperationContract]
 		string AddPlayer(string player);
 		[OperationContract(IsOneWay = true)]

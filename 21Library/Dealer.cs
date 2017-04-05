@@ -35,6 +35,8 @@ namespace _21Library {
 		}
 		[DataMember]
 		public string CardTotalLabel { get { if (CardTotal > 21) return "Busted"; return CardTotal.ToString(); } private set { } }
+		[DataMember]
+		public bool HasGameStarted { get; set; }
 
 		//Constructor
 		public Dealer() {
