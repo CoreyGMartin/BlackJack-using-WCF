@@ -1,36 +1,32 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.ServiceModel;
 using _21Library;
 
 namespace _21Service {
 	class Program {
 		static void Main(string[] args) {
-			ServiceHost servHost = null;
+			ServiceHost _21Service = null;	//port = 12000
 			try {
 				// Address
-				servHost = new ServiceHost(typeof(BlackJackTable), new Uri("net.tcp://localhost:12000/21Library/"));
+				_21Service = new ServiceHost(typeof(BlackJackTable), new Uri("net.tcp://localhost:12000/21Library/"));
 
-				// Service contract and binding
-				servHost.AddServiceEndpoint(typeof(IBlackJackTable), new NetTcpBinding(), "BlackJackTable");
+				// Service contracts and binding
+				NetTcpBinding tcpBinding = new NetTcpBinding();
+				tcpBinding.Security.Mode = SecurityMode.None;
+				_21Service.AddServiceEndpoint(typeof(IBlackJackTable), tcpBinding, "BlackJackTable");
+				_21Service.AddServiceEndpoint(typeof(IUsersTable), tcpBinding, "UsersTable");
 
 				// Manage the service’s life cycle
-				servHost.Open();
-				Console.WriteLine("Service started. Press a key to quit.");
-
+				_21Service.Open();
+				Console.WriteLine("21 service has started. Press a key to quit.");
 				Console.ReadKey();
 
 			} catch (Exception ex) {
 				Console.WriteLine(ex.Message);
 			} finally {
-				
-				if (servHost != null)
-					servHost.Close();
+				if (_21Service != null)
+					_21Service.Close();
 			}
-
 		}
 	}
 }

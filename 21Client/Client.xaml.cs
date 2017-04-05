@@ -1,17 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 using _21Library;
 using System.ServiceModel;
 
@@ -19,206 +8,212 @@ namespace _21Client {
 	[CallbackBehavior(ConcurrencyMode = ConcurrencyMode.Reentrant, UseSynchronizationContext = false)]
 	public partial class Client : Window, IPlayerCallBack {
 		//Fields
-		public IBlackJackTable table;
+		private IBlackJackTable blackJackTable;
+		private IUsersTable usersTable;
 		private Player[] players;
 		private Dealer dealer;
-		//private Dictionary<int, TurnIdentifier> turnIdentifierPositionColRow = new Dictionary<int, TurnIdentifier>();
+		private string name;
+		private string endpoint;
 
 		//Properties
-		public new string Name { get; set; }
-		public Client() {
+		public static readonly DependencyProperty TurnIndicatorColProperty = DependencyProperty.Register("TurnIndicatorCol", typeof(int), typeof(Client));
+		public static readonly DependencyProperty TurnIndicatorRowProperty = DependencyProperty.Register("TurnIndicatorRow", typeof(int), typeof(Client));
+		public int TurnIndicatorCol { get { return (int)GetValue(TurnIndicatorColProperty); } set { SetValue(TurnIndicatorColProperty, value); } }
+		public int TurnIndicatorRow { get { return (int)GetValue(TurnIndicatorRowProperty); } set { SetValue(TurnIndicatorRowProperty, value); } }
+
+		//Constructor
+		public Client(IUsersTable usersTable, string name, string endpoint) {
 			InitializeComponent();
 
+			this.usersTable = usersTable;
+			this.name = name;
+			this.endpoint = endpoint;
+			Title = "BlackJack - " + name;
+
 			// Configure the ABCs of using the BlackJackTable service.
-			DuplexChannelFactory<IBlackJackTable> channel = new DuplexChannelFactory<IBlackJackTable>(
-																this,
-																new NetTcpBinding(),
-																new EndpointAddress("net.tcp://localhost:12000/21Library/BlackJackTable")
-															);
+			string endpointAddress = "net.tcp://" + endpoint + ":12000/21Library/BlackJackTable";
+			NetTcpBinding tcpBinding = new NetTcpBinding();
+			tcpBinding.Security.Mode = SecurityMode.None;
+			DuplexChannelFactory<IBlackJackTable> channel = new DuplexChannelFactory<IBlackJackTable>(this, tcpBinding, new EndpointAddress(endpointAddress));
 
 			// Activate a BlackJackTable instance.
-			table = channel.CreateChannel();
+			blackJackTable = channel.CreateChannel();
 
-			Join join = new Join(table, this);
-			join.Show();
-			Hide();
-
-			player0Zone.Visibility = Visibility.Hidden;
-			player1Zone.Visibility = Visibility.Hidden;
-			player2Zone.Visibility = Visibility.Hidden;
-			player3Zone.Visibility = Visibility.Hidden;
-			player4Zone.Visibility = Visibility.Hidden;
-
-			//turnIdentifierPositionColRow.Add(0, new TurnIdentifier(4, 1));
-			//turnIdentifierPositionColRow.Add(1, new TurnIdentifier(3, 1));
-			//turnIdentifierPositionColRow.Add(2, new TurnIdentifier(2, 2));
-			//turnIdentifierPositionColRow.Add(3, new TurnIdentifier(1, 1));
-			//turnIdentifierPositionColRow.Add(4, new TurnIdentifier(0, 1));
-			//turnIdentifierPositionColRow.Add(5, new TurnIdentifier(1, 0)); //Dealer
+			//Add player to table
+			blackJackTable.AddPlayer(name);
 		}
 
-		//---------------------------------------------------Callback Implementation---------------------------------------------------
-		private delegate void GuiUpdate(Tuple<Player[], Dealer> playersAndDealer);
+		//---------------------------------------------------Callback Implementation----------------------------------------------
 		private delegate void GuiUpdatePlayersAndDealer(Tuple<Player[], Dealer> playersAndDealer, string[] dealersDecision);
 		private delegate void GuiUpdateDealer(Dealer dealer, string[] dealersDecision);
-		public async void StartHand(Tuple<Player[], Dealer> playersAndDealer) {
+		private delegate void GuiUpdateMessages(string[] messages);
+		private delegate void GuiUpdateMessage(string message);
+		public void UpdatePlayerWithMessage(string message) {
 			if (Dispatcher.Thread == System.Threading.Thread.CurrentThread) {
-				//Inform player the hand is about to start.
-				AddTextToGameLogNoSapces("Hand Starting in");
-				for (int second = 3; second > 0; --second) {
-					AddTextToGameLogNoSapces(" " + second);
-					await Task.Delay(1000);
+				if (message == "kicked") {
+					MessageBox.Show("Out of Money!", "No Money", MessageBoxButton.OK, MessageBoxImage.Information);
+					Join join = new Join(usersTable, name, endpoint);
+					join.Show();
+					Close();
 				}
-				AddTextToGameLog(new string[] { "" });
-
-				//Bind data from service to wpf
-				players = playersAndDealer.Item1;
-				dealer = playersAndDealer.Item2;
-				DataContext = new { Players = players, Dealer = dealer };
-
-				//Show player zones of seats taken
-				if (players[0] != null)
-					player0Zone.Visibility = Visibility.Visible;
-				if (players[1] != null)
-					player1Zone.Visibility = Visibility.Visible;
-				if (players[2] != null)
-					player2Zone.Visibility = Visibility.Visible;
-				if (players[3] != null)
-					player3Zone.Visibility = Visibility.Visible;
-				if (players[4] != null)
-					player4Zone.Visibility = Visibility.Visible;
-
-				//Check if it is my turn
-				Player player = players.First(p => p != null && p.Name == Name);
-				if (player.IsItMyTurn) {
-					//My turn, enable controls
-					betBtn.IsEnabled = true;
-					betSlider.IsEnabled = true;
-				} else {
-					//Not my turn, disable controls
-					hitMeBtn.IsEnabled = false;
-					stayBtn.IsEnabled = false;
-					betBtn.IsEnabled = false;
-					betSlider.IsEnabled = false;
-				}
-				betSlider.Maximum = player.Money;
-				availableMoneyToBetTextBlock.Text = player.Money.ToString();
-
 			} else
-				await Dispatcher.BeginInvoke(new GuiUpdate(StartHand), new object[] { playersAndDealer });
+				Dispatcher.BeginInvoke(new GuiUpdateMessage(UpdatePlayerWithMessage), new object[] { message });
 		}
-		public void UpdateGUI(Tuple<Player[], Dealer> playersAndDealer, string[] messages) {
+		public void UpdatePlayersWithMessage(string[] messages) {
+			if (Dispatcher.Thread == System.Threading.Thread.CurrentThread) {
+				AddTextToGameLog(messages);
+			} else
+				Dispatcher.BeginInvoke(new GuiUpdateMessages(UpdatePlayersWithMessage), new object[] { messages });
+		}
+		public void UpdatePlayersAndDealer(Tuple<Player[], Dealer> playersAndDealer, string[] messages) {
 			if (Dispatcher.Thread == System.Threading.Thread.CurrentThread) {
 				//Bind data from service to wpf
 				players = playersAndDealer.Item1;
 				dealer = playersAndDealer.Item2;
 				DataContext = new { Players = players, Dealer = dealer };
 
+				//Add messages
 				AddTextToGameLog(messages);
 
-				//Show player zones of seats taken
-				if (players[0] != null)
-					player0Zone.Visibility = Visibility.Visible;
-				if (players[1] != null)
-					player1Zone.Visibility = Visibility.Visible;
-				if (players[2] != null)
-					player2Zone.Visibility = Visibility.Visible;
-				if (players[3] != null)
-					player3Zone.Visibility = Visibility.Visible;
-				if (players[4] != null)
-					player4Zone.Visibility = Visibility.Visible;
+				//Show player zones of seats taken and set turn indicator to hidden
+				turnIndicatorEllipse.Visibility = Visibility.Hidden;
+				if (players[0] != null) player0Zone.Visibility = Visibility.Visible; else player0Zone.Visibility = Visibility.Hidden;
+				if (players[1] != null) player1Zone.Visibility = Visibility.Visible; else player1Zone.Visibility = Visibility.Hidden;
+				if (players[2] != null) player2Zone.Visibility = Visibility.Visible; else player2Zone.Visibility = Visibility.Hidden;
+				if (players[3] != null) player3Zone.Visibility = Visibility.Visible; else player3Zone.Visibility = Visibility.Hidden;
+				if (players[4] != null) player4Zone.Visibility = Visibility.Visible; else player4Zone.Visibility = Visibility.Hidden;
 
-				//Checks if player is waiting or currently playing.
-				if (players.Any(p => p != null && p.Name == Name)) {
-					Player player = players.First(p => p != null && p.Name == Name);
-					//Check if it is my turn and if I have placed a bet
-					if (player.IsItMyTurn && player.Bet == 0) {
-						//My turn, haven't bet bet enable controls
-						betBtn.IsEnabled = true;
-						betSlider.IsEnabled = true;
-						hitMeBtn.IsEnabled = false;
-						stayBtn.IsEnabled = false;
-					} else if (player.IsItMyTurn) {
-						//Player has placed bet
-						betBtn.IsEnabled = false;
-						betSlider.IsEnabled = false;
-						hitMeBtn.IsEnabled = true;
-						stayBtn.IsEnabled = true;
-					} else {
-						//Not my turn, disable controls
-						hitMeBtn.IsEnabled = false;
-						stayBtn.IsEnabled = false;
-						betBtn.IsEnabled = false;
-						betSlider.IsEnabled = false;
+				if (dealer.HasGameStarted) {
+					//Disable startgame button since game has already started
+					startGameBtn.IsEnabled = false;
+
+					//Find out where the yellow circle turn indicator chip should be.
+					for (int i = 0; i < players.Length; ++i) {
+						if (players[i] != null && players[i].IsItMyTurn) {
+							if (i == 0) {
+								TurnIndicatorCol = 4;
+								TurnIndicatorRow = 1;
+							} else if (i == 1) {
+								TurnIndicatorCol = 3;
+								TurnIndicatorRow = 1;
+							} else if (i == 2) {
+								TurnIndicatorCol = 2;
+								TurnIndicatorRow = 2;
+							} else if (i == 3) {
+								TurnIndicatorCol = 1;
+								TurnIndicatorRow = 1;
+							} else if (i == 4) {
+								TurnIndicatorCol = 0;
+								TurnIndicatorRow = 1;
+							}
+							turnIndicatorEllipse.Visibility = Visibility.Visible;
+							break;
+						}	
 					}
-					betSlider.Maximum = player.Money;
-					availableMoneyToBetTextBlock.Text = player.Money.ToString();
-					//Play is not waiting.
-					//Player player = players.First(p => p != null && p.Name == Name);
-					//if (player.HasBusted()) {
-					//	//Player busted.
-					//	hitMeBtn.IsEnabled = false;
-					//	stayBtn.IsEnabled = false;
-					//}
+
+					//Checks if player is waiting or currently playing.
+					if (players.Any(p => p != null && p.Name == name)) {
+						Player player = players.First(p => p != null && p.Name == name);
+						//Check if it is my turn and if I have placed a bet
+						if (player.IsItMyTurn && player.Bet == 0) {
+							//My turn, haven't bet yet, enable controls
+							betBtn.IsEnabled = true;
+							betSlider.IsEnabled = true;
+							hitMeBtn.IsEnabled = false;
+							stayBtn.IsEnabled = false;
+						} else if (player.IsItMyTurn && !player.HasBusted()) {
+							//My turn, Player has placed bet, time to stay or hit
+							betBtn.IsEnabled = false;
+							betSlider.IsEnabled = false;
+							hitMeBtn.IsEnabled = true;
+							stayBtn.IsEnabled = true;
+						} else {
+							//Not my turn, disable controls
+							hitMeBtn.IsEnabled = false;
+							stayBtn.IsEnabled = false;
+							betBtn.IsEnabled = false;
+							betSlider.IsEnabled = false;
+						}
+						betSlider.Maximum = player.Money;
+						availableMoneyToBetTextBlock.Text = player.Money.ToString();
+					}
+				} else {
+					Player player = players.First(p => p != null && p.CanStartGame == true);
+					if (player.Name == name) {
+						startGameBtn.IsEnabled = true;
+					} else {
+						startGameBtn.IsEnabled = false;
+					}
 				}
 
 			} else
-				Dispatcher.BeginInvoke(new GuiUpdatePlayersAndDealer(UpdateGUI), new object[] { playersAndDealer, messages });
+				Dispatcher.BeginInvoke(new GuiUpdatePlayersAndDealer(UpdatePlayersAndDealer), new object[] { playersAndDealer, messages });
 		}
-		public void UpdateDealerGUI(Dealer dealer, string[] dealersDecision) {
+		public void UpdateDealer(Dealer dealer, string[] dealersDecision) {
 			if (Dispatcher.Thread == System.Threading.Thread.CurrentThread) {
-				//Update controls
+				//Dealers turn disable controls.
 				hitMeBtn.IsEnabled = false;
 				stayBtn.IsEnabled = false;
 				betBtn.IsEnabled = false;
+				turnIndicatorEllipse.Visibility = Visibility.Hidden;
 
 				//Bind data from service to wpf
 				DataContext = new { Players = players, Dealer = dealer };
 				AddTextToGameLog(dealersDecision);
 			} else
-				Dispatcher.BeginInvoke(new GuiUpdateDealer(UpdateDealerGUI), new object[] { dealer, dealersDecision });
+				Dispatcher.BeginInvoke(new GuiUpdateDealer(UpdateDealer), new object[] { dealer, dealersDecision });
 		}
 
 		//---------------------------------------------------WPF Event Handlers---------------------------------------------------
-
 		private void hitMeBtn_Click(object sender, RoutedEventArgs e) {
-			table.DealCardToTurnPlayer();
+			try {
+				blackJackTable.DealCardToTurnPlayer();
+			} catch {
+				MessageBox.Show("Problem connecting to Server. Please close the client and try again.", "Connection Problem", MessageBoxButton.OK, MessageBoxImage.Error);
+			}
 		}
-
 		private void betBtn_Click(object sender, RoutedEventArgs e) {
-			table.SetPlayersTurnBet((int)betSlider.Value);
-
-			betSlider.Value = 50; //Minimum bet is 50
-			//betSlider.IsEnabled = false;
-			//betBtn.IsEnabled = false;
-
-			//hitMeBtn.IsEnabled = true;
-			//stayBtn.IsEnabled = true;
+			try {
+				blackJackTable.SetPlayersTurnBet((int)betSlider.Value);
+				//Minimum bet is 50
+				betSlider.Value = 50;
+			} catch {
+				MessageBox.Show("Problem connecting to Server. Please close the client and try again.", "Connection Problem", MessageBoxButton.OK, MessageBoxImage.Error);
+			}
 		}
-
 		private void stayBtn_Click(object sender, RoutedEventArgs e) {
-			table.NextTurn();
-			betSlider.IsEnabled = true;
-			betBtn.IsEnabled = true;
-			hitMeBtn.IsEnabled = false;
-			stayBtn.IsEnabled = false;
+			try {
+				blackJackTable.NextTurn(false);
+			} catch {
+				MessageBox.Show("Problem connecting to Server. Please close the client and try again.", "Connection Problem", MessageBoxButton.OK, MessageBoxImage.Error);
+			}
 		}
-
 		private void client_Closed(object sender, EventArgs e) {
-			table.RemovePlayer(Name);
+			try {
+				blackJackTable.RemovePlayer(name);
+			} catch {
+				//No need to inform client, They were exiting the application anyways.
+			}
+		}
+		private void startGameBtn_Click(object sender, RoutedEventArgs e) {
+			try {
+				blackJackTable.StartGame();
+			} catch {
+				MessageBox.Show("Problem connecting to Server. Please close the client and try again.", "Connection Problem", MessageBoxButton.OK, MessageBoxImage.Error);
+			}
 		}
 
 		//---------------------------------------------------Helper Methods---------------------------------------------------
 		public void AddTextToGameLog(string[] messages) {
 			if (messages != null) {
 				foreach (string message in messages)
-					statusTextBox.AppendText(message + "\n");
+					if (message != null)
+						statusTextBox.AppendText(message + "\n");
 
 				//Auto scroll vertical scroll bar.
 				statusTextBox.Focus();
 				statusTextBox.CaretIndex = statusTextBox.Text.Length;
 				statusTextBox.ScrollToEnd();
-
 			}
 		}
 		public void AddTextToGameLogNoSapces(string message) {

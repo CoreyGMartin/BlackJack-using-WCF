@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
+﻿using System.Windows;
 using System.Runtime.Serialization;
 using System.ComponentModel;
 
@@ -43,6 +38,8 @@ namespace _21Library {
 		}
 		[DataMember]
 		public string BetLabel { get { return Bet.ToString("C"); } private set { } }
+		[DataMember]
+		public bool CanStartGame { get; set; }
 		[DataMember]
 		public Card[] Cards { get; set; }
 		[DataMember]
@@ -89,6 +86,7 @@ namespace _21Library {
 		public Player(string name) {
 			Cards = new Card[8];
 			IsItMyTurn = false;
+			CanStartGame = false;
 			AmountWonLostLabelVisibility = Visibility.Hidden;
 			Name = name;
 			money = 20000; //$20,000
@@ -107,7 +105,6 @@ namespace _21Library {
 		}
 		public void LostBet() {
 			AmountWonLost = Bet * -1;
-			//Money += AmountWonLost;
 			AmountWonLostLabelVisibility = Visibility.Visible;
 		}
 		public void WonBet(double rate) {

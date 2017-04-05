@@ -1,17 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.ServiceModel;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
+﻿using System.ServiceModel;
 
 namespace _21Library {
 	[ServiceContract(CallbackContract = typeof(IPlayerCallBack))]
-	public interface IBlackJackTable {
+	public interface IBlackJackTable : I21Service {
 		//Methods
+		[OperationContract(IsOneWay = true)]
+		void StartGame();
 		[OperationContract]
-		bool AddPlayer(string player);
+		string AddPlayer(string player);
 		[OperationContract(IsOneWay = true)]
 		void RemovePlayer(string name);
 		[OperationContract(IsOneWay = true)]
@@ -19,6 +15,6 @@ namespace _21Library {
 		[OperationContract(IsOneWay = true)]
 		void DealCardToTurnPlayer();
 		[OperationContract(IsOneWay = true)]
-		void NextTurn();
+		void NextTurn(bool removeCurrentTurnPlayer);
 	}
 }

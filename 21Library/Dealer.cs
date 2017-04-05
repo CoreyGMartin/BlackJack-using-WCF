@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
+﻿using System.Windows;
 using System.Runtime.Serialization;
 
 namespace _21Library {
@@ -40,6 +35,8 @@ namespace _21Library {
 		}
 		[DataMember]
 		public string CardTotalLabel { get { if (CardTotal > 21) return "Busted"; return CardTotal.ToString(); } private set { } }
+		[DataMember]
+		public bool HasGameStarted { get; set; }
 
 		//Constructor
 		public Dealer() {

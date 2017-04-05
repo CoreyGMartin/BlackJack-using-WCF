@@ -46,11 +46,22 @@
   <ItemGroup>
     <Compile Include="Card.cs" />
     <Compile Include="Dealer.cs" />
+    <Compile Include="I21Service.cs" />
     <Compile Include="IBlackJackTable.cs" />
     <Compile Include="IPlayerCallBack.cs" />
+    <Compile Include="IUsersTable.cs" />
     <Compile Include="Player.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="BlackJackTable.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="CardClassDiagram.cd" />
+    <None Include="IUsersTableClassDiagram.cd" />
+    <None Include="IPlayerCallBackDiagram.cd" />
+    <None Include="IBlackJackTableDiagram.cd" />
+    <None Include="I21ServiceClassDiagram.cd" />
+    <None Include="PlayerClassDiagram.cd" />
+    <None Include="DealerClassDiagram.cd" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
